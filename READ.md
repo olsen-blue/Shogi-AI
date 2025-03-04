@@ -5,6 +5,8 @@
 └── README.md  ← 説明ファイル（あってもなくてもOK）
 ```
 
-engine.sh（ShogiHomeで実行するためのスクリプト）
+USIというプロトコルを用いています
+http://shogidokoro.starfree.jp/usi.html
+
 MacではPythonスクリプトを直接実行するために、
-**シェルスクリプト（.shファイル）**を作るとShogiHomeで登録しやすい
+**シェルスクリプト（.shファイル）**を作り、ShogiHome(GUI)で登録します

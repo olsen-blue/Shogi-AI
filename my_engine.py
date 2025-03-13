@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys
-from enum import Enum, auto
+from enum import Enum
 
 # =======================================
 # 1. 手番を表す列挙型
@@ -46,6 +46,41 @@ class Piece(Enum):
 
 # =======================================
 # 3. 駒表示用のマッピング
+PIECE_TO_USI_CHAR = {
+    Piece.BlackPawn: 'P',
+    Piece.BlackLance: 'L',
+    Piece.BlackKnight: 'N',
+    Piece.BlackSilver: 'S',
+    Piece.BlackGold: 'G',
+    Piece.BlackBishop: 'B',
+    Piece.BlackRook: 'R',
+    Piece.BlackKing: 'K',
+    Piece.BlackPromotedPawn: 'P',
+    Piece.BlackPromotedLance: 'L',
+    Piece.BlackPromotedKnight: 'N',
+    Piece.BlackPromotedSilver: 'S',
+    Piece.BlackHorse: 'B',
+    Piece.BlackDragon: 'R',
+    Piece.WhitePawn: 'p',
+    Piece.WhiteLance: 'l',
+    Piece.WhiteKnight: 'n',
+    Piece.WhiteSilver: 's',
+    Piece.WhiteGold: 'g',
+    Piece.WhiteBishop: 'b',
+    Piece.WhiteRook: 'r',
+    Piece.WhiteKing: 'k',
+    Piece.WhitePromotedPawn: 'p',
+    Piece.WhitePromotedLance: 'l',
+    Piece.WhitePromotedKnight: 'n',
+    Piece.WhitePromotedSilver: 's',
+    Piece.WhiteHorse: 'b',
+    Piece.WhiteDragon: 'r'
+}
+
+def get_usi_char_from_piece(piece: Piece) -> str:
+    return PIECE_TO_USI_CHAR.get(piece)
+
+
 PIECE_KANJIS = [
     "    ", "歩", "香", "桂", "銀", "金", "角", "飛", "王",
     "と", "杏", "圭", "全", "馬", "龍",
@@ -54,7 +89,6 @@ PIECE_KANJIS = [
 ]
 
 def get_kanji_from_piece(piece: Piece) -> str:
-    """指定した Piece を人間向けの文字列に変換するよ♪"""
     return PIECE_KANJIS[piece.value]
 
 # =======================================
@@ -63,7 +97,6 @@ CHAR_TO_PIECE = {}
 NON_PROMOTED_TO_PROMOTED = {}
 
 def initialize_types():
-    """SFENパースに必要な変換テーブルを初期化するよ！"""
     global CHAR_TO_PIECE, NON_PROMOTED_TO_PROMOTED
     # --- 文字と駒の対応付け ---
     CHAR_TO_PIECE['K'] = Piece.BlackKing
@@ -149,7 +182,6 @@ class Position:
         return "\n".join(lines)
 
     def set_board_from_sfen(self, sfen: str):
-        """SFEN形式の文字列から局面をセットするよ♪"""
         #  初期化：盤面・持ち駒をクリアし、手数を1にリセット
         self.side_to_move = Color.Black
         for f in range(Position.BOARD_SIZE):
@@ -212,7 +244,7 @@ class Position:
                 continue
             if ch.isdigit():
                 # 複数桁の数字を正しく数値に変換するため下記の計算になってる。
-                    # (例)数字「1」と「0」が連続している場合、「1」を読むと count = 0 * 10 + 1 で count が 1 -> 次に「0」を読むと count = 1 * 10 + 0 で count が 10 になる！！
+                    # (例)数字「1」と「0」が連続している場合、「1」を読むと count = 0 * 10 + 1 で count が 1 -> 次に「0」を読むと count = 1 * 10 + 0 で count が 10 になる！
                 count = count * 10 + int(ch)
                 continue
             piece = CHAR_TO_PIECE.get(ch)
@@ -249,7 +281,6 @@ class Move:
         prefix = "▲" if self.side_to_move == Color.Black else "△"
         dest = f"{self.file_to + 1}{RANK_TO_KANJI[self.rank_to]}"
         piece_str = get_kanji_from_piece(self.piece_from).strip()
-        # drop, promotion の情報は表示しない
         return f"{prefix}{dest}{piece_str}"
 
 # __eq__ と __hash__ は set や dict を使うと Python が自動で呼び出す ので、通常は明示的に呼び出すことはない。
@@ -267,7 +298,7 @@ class Move:
                      self.piece_to, self.drop, self.promotion, self.side_to_move))
                      
     # インスタンスを使わない関数にするデコレータ @staticmethod
-    # make_moveは Move クラスのインスタンスを使わず、単に USIの指し手文字列から Move オブジェクトを作るだけなのでインスタンスが不要の関数。
+    # make_moveは Move クラスのインスタンスを使わず、単に USIの指し手文字列(move_str)から Move オブジェクトを作るだけなのでインスタンスが不要の関数。
     @staticmethod
     def make_move(position, move_str):
     # move_str: USI形式の指し手を表す文字列（例: "7g7f" や "G*5b"）
@@ -297,6 +328,33 @@ class Move:
             piece_to = position.board[file_to][rank_to]
             return Move(file_from, rank_from, piece_from, file_to, rank_to, piece_to,           # Move オブジェクトを作成して返しているよ。駒を「移動」する場合は drop=False となる！
                         drop=False, promotion=promotion, side_to_move=position.side_to_move)
+
+    # moveをUSIに変換する関数
+    def transform_move_to_USI(self):
+        if self == Move.RESIGN:
+            return "resign"
+        elif self == Move.WIN:
+            return "win"
+        # elif self == Move.NONE:
+        #     return "none"
+
+        usi_string = ""
+        # 打ち手の場合
+        if self.drop:
+            usi_string += get_usi_char_from_piece(self.piece_from).upper()
+            usi_string += "*"
+        # 通常手の場合
+        else:
+            usi_string += chr(self.file_from + ord('1'))
+            usi_string += chr(self.rank_from + ord('a'))
+
+        usi_string += chr(self.file_to + ord('1'))
+        usi_string += chr(self.rank_to + ord('a'))
+
+        if self.promotion:
+            usi_string += "+"
+        
+        return usi_string
 
 # 特別な指し手
 Move.RESIGN = Move(2, 2, None, 2, 2, None, False, False, None)
@@ -497,47 +555,102 @@ def generate_moves(position):
 # 駒を動かすための補助関数
     # 盤面に駒を置く関数
 def put_piece(board, file, rank, piece):
-    assert board[file][rank] == Piece.NoPiece, "配置先に駒があるよ！"
+    assert board[file][rank] == Piece.NoPiece, "配置先に駒がある！"
     board[file][rank] = piece
 
     # 盤面から駒を取り除く関数
 def remove_piece(board, file, rank):
-    assert board[file][rank] != Piece.NoPiece, "そこには駒がないよ！"
+    assert board[file][rank] != Piece.NoPiece, "そこには駒がない！"
     board[file][rank] = Piece.NoPiece
 
 # position に move を適用して実際に局面を変更する関数
 def do_move(position, move):
-    assert position.side_to_move == move.side_to_move, "手番が合わないよ！"
+    assert position.side_to_move == move.side_to_move, "手番が合わない！"
     if move.piece_to != Piece.NoPiece:                                      # 取った駒（move.piece_to）があった場合、その駒を盤面から取り除く
         remove_piece(position.board, move.file_to, move.rank_to)
         position.hand_pieces[transform_to_opponent_hand_piece(move.piece_to).value] += 1  # 敵味方(black or white)を変換して、手持ちのコマとして追加する。
     if move.drop:                                                                   # 手駒から選んでコマを打つ場合の処理
-        assert position.hand_pieces[move.piece_from.value] > 0, "持ち駒がないよ！"
+        assert position.hand_pieces[move.piece_from.value] > 0, "持ち駒がない！"
         position.hand_pieces[move.piece_from.value] -= 1
     else:                                                                           # すでに盤面にある駒を移動する場合は、移動元の駒を盤面から取り除いて、次に進む。
         remove_piece(position.board, move.file_from, move.rank_from)
     new_piece = transform_to_promoted_piece(move.piece_from) if move.promotion else move.piece_from     # 成りがある場合、成った後のコマに更新
-    put_piece(position.board, move.file_to, move.rank_to, new_piece)                    # 移動先のマスに新しい駒（または昇格した駒）を配置して、盤面boardを更新するよ！
-    position.side_to_move = get_opponent_color(position.side_to_move)                          # 最後に、次の手番を相手に渡すために、手番を切り替えたり、手数を増やしたりするよ.
+    put_piece(position.board, move.file_to, move.rank_to, new_piece)                    # 移動先のマスに新しい駒（または昇格した駒）を配置して、盤面boardを更新する！
+    position.side_to_move = get_opponent_color(position.side_to_move)                          # 最後に、次の手番を相手に渡すために、手番を切り替えたり、手数を増やしたりする。
     position.play += 1
-    position.last_move = move                                                           # それと、今回の指し手を記録しておくよ。これでゲームが進んだことを記録できるね！
+    position.last_move = move                                                           # それと、今回の指し手を記録しておくよ。これでゲームが進んだことを記録できる！
 
 # 指し手を元に戻す関数 : 探索時などで指し手を適用・元に戻す処理が必要になるため、局面を一手戻す関数も実装
 def undo_move(position, move):
-    position.play -= 1                                              # まず最初に、手数（position.play）を1つ減らして、手番を元に戻すよ。これで「戻す」動作ができるね！
+    position.play -= 1                                              # まず最初に、手数（position.play）を1つ減らして、手番を元に戻すよ。これで「戻す」動作ができる。
     position.side_to_move = get_opponent_color(position.side_to_move)
-    remove_piece(position.board, move.file_to, move.rank_to)        # 盤面から、元々移動先に置いた駒を取り除いて、戻すんだよ。
-    if move.drop:                                                   # もし駒を「打つ」手だった場合、その駒を持ち駒に戻す！これで、駒を打った時に戻してあげる処理をしているよ。
+    remove_piece(position.board, move.file_to, move.rank_to)        # 盤面から、元々移動先に置いた駒を取り除いて、戻す。
+    if move.drop:                                                   # もし駒を「打つ」手だった場合、その駒を持ち駒に戻す！これで、駒を打った時に戻してあげる処理をしている。
         position.hand_pieces[move.piece_from.value] += 1
     else:                                                           # 駒を「移動」した場合、その駒を元の位置に戻すよ。
         put_piece(position.board, move.file_from, move.rank_from, move.piece_from)
-    if move.piece_to != Piece.NoPiece:                                                  # 最後に、もし相手の駒を取った場合、その駒を持ち駒から取り除き、元の位置に戻すんだよ！
+    if move.piece_to != Piece.NoPiece:                                                  # 最後に、もし相手の駒を取った場合、その駒を持ち駒から取り除き、元の位置に戻す。
         position.hand_pieces[transform_to_opponent_hand_piece(move.piece_to).value] -= 1
         put_piece(position.board, move.file_to, move.rank_to, move.piece_to)
 
 
 # =======================================
-# 11. USIプロトコルに対応したメイン処理
+# 11. 評価関数
+class Evaluator:
+    # PieceValues の配列。インデックスは Piece.value に対応している。各駒に割り当てた値は一般的に使われる駒価値に準拠しています。
+    PIECE_VALUES = [
+        0,     # NoPiece
+        90,    # BlackPawn（歩）
+        315,   # BlackLance（香）
+        405,   # BlackKnight（桂）
+        495,   # BlackSilver（銀）
+        540,   # BlackGold（金）
+        855,   # BlackBishop（角）
+        945,   # BlackRook（飛）
+        15000, # BlackKing（王）
+        540,   # BlackPromotedPawn（と）
+        540,   # BlackPromotedLance（成香）
+        540,   # BlackPromotedKnight（成桂）
+        540,   # BlackPromotedSilver（成銀）
+        945,   # BlackHorse（馬）
+        1395,  # BlackDragon（龍）
+        -90,   # WhitePawn（歩↓）
+        -315,  # WhiteLance（香↓）
+        -405,  # WhiteKnight（桂↓）
+        -495,  # WhiteSilver（銀↓）
+        -540,  # WhiteGold（金↓）
+        -855,  # WhiteBishop（角↓）
+        -945,  # WhiteRook（飛↓）
+        -15000,     # WhiteKing（王↓）※王の価値は両側同じとするため 0
+        -540,  # WhitePromotedPawn（と↓）
+        -540,  # WhitePromotedLance（成香↓）
+        -540,  # WhitePromotedKnight（成桂↓）
+        -540,  # WhitePromotedSilver（成銀↓）
+        -945,  # WhiteHorse（馬↓）
+        -1395  # WhiteDragon（龍↓）
+    ]
+
+    @staticmethod
+    def evaluate(position):  # 局面評価関数：盤面と持ち駒の駒価値の合計を計算する
+        value = 0
+        # 盤面上の駒の評価値の合計を求める
+        for file in range(Position.BOARD_SIZE):
+            for rank in range(Position.BOARD_SIZE):
+                piece = position.board[file][rank]
+                value += Evaluator.PIECE_VALUES[piece.value]
+        # 持ち駒の評価値の合計を求める
+        for i in range(len(position.hand_pieces)):
+            value += Evaluator.PIECE_VALUES[i] * position.hand_pieces[i]
+        # 後手の場合は評価値を反転（後手が有利なら評価値はマイナス）
+        if position.side_to_move == Color.White:
+            value = -value
+        return value
+
+
+# =======================================
+# 12. USIプロトコルに対応したメイン処理
+import random
+
 def main():
     initialize_types()
     position = Position()
@@ -579,8 +692,8 @@ def main():
             for token in parts[next_index:]:
                 if token == "moves":
                     continue
-                move = Move.make_move(position, token)
-                do_move(position, move)
+                move = Move.make_move(position, token)  # move 生成
+                do_move(position, move)                 # positionに対して、moveを適用
         elif command == "d":
             print(position)
         elif command == "generatemove":
@@ -588,15 +701,22 @@ def main():
             if moves:
                 for move in moves:
                     print(move, end=" ")
-                print()
+                print()  #  最後に改行を入れる : エンジンがコマンドの行を送信する場合、最後に必ず改行コード（\n）を追加する必要がある。改行コードがないと、GUIは行の終わりを認識できない。
             else:
                 print("no moves")
         elif command == "go":
-            print("bestmove resign")
+            moves = list(generate_moves(position))
+            if not moves:
+                print("bestmove resign")
+            else:
+                move = random.choice(moves)
+                print("bestmove " + move.transform_move_to_USI())
+        elif command == "eval":
+            print(Evaluator.evaluate(position))
         elif command == "quit":
             break
         elif command in ["usinewgame", "setoption", "stop", "ponderhit", "gameover"]:
-            pass
+            pass    # もし pass を削除すると、Python は elif のブロックに何も処理がないとエラーを出してしまう。
         else:
             print(f"info string Unsupported command: {command}")
 
@@ -604,3 +724,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Python のすべてのモジュール（←つまりPythonファイル）には特殊な変数 __name__ があり、スクリプトが直接実行された場合は "__main__" というモジュール名の値が設定される。
+# プログラムを実行したときに、「このコードはメインプログラム（他のファイルからインポートされず、直接実行されているもの）として動いているか？」を確認している
+# つまりは、このコードが直接実行される場合のみmain()が動くようにしてる
+
+# USIプロトコルは、標準入出力（stdin/stdout）を用いたテキストベースのプロトコルであり、シンプルに、print() と sys.stdout.flush() を使うだけで通信できる。

@@ -621,7 +621,7 @@ class Evaluator:
         -540,  # WhiteGold（金↓）
         -855,  # WhiteBishop（角↓）
         -945,  # WhiteRook（飛↓）
-        -15000,     # WhiteKing（王↓）※王の価値は両側同じとするため 0
+        -15000,     # WhiteKing（王↓）
         -540,  # WhitePromotedPawn（と↓）
         -540,  # WhitePromotedLance（成香↓）
         -540,  # WhitePromotedKnight（成桂↓）

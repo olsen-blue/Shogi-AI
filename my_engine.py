@@ -631,7 +631,7 @@ class Evaluator:
     ]
 
     @staticmethod
-    def evaluate(position):  # 局面評価関数：盤面と持ち駒の駒価値の合計を計算する
+    def evaluate(position):  # 評価値を出力する関数：盤面と持ち駒の駒価値の合計を計算する
         value = 0
         # 盤面上の駒の評価値の合計を求める
         for file in range(Position.BOARD_SIZE):
@@ -641,15 +641,64 @@ class Evaluator:
         # 持ち駒の評価値の合計を求める
         for i in range(len(position.hand_pieces)):
             value += Evaluator.PIECE_VALUES[i] * position.hand_pieces[i]
-        # 後手の場合は評価値を反転（後手が有利なら評価値はマイナス）
+        # 後手の場合は評価値を反転
         if position.side_to_move == Color.White:
             value = -value
         return value
 
+# =======================================
+# 12. ミニマックス法を用いた最善手の探索部(11. の評価関数を利用)
+import time
+
+class BestMove:
+    def __init__(self, move, value):
+        self.move = move
+        self.value = value
+
+class Searcher:
+    # ある頂点(盤面)視点から、複数生えている辺(指し手)の中から、1つだけ最適な辺(最善の指し手 と 最善と判断したエビデンスに該当する評価値)を返す関数  (DFSの探索挙動)
+        # 頂点: 盤面(positionのイメージ), 複数の辺 : たくさんある指し手(moveのイメージ)
+        # この視点が、親ノード->子ノードの遷移で、敵/味方 が切り替わるのが重要ポイント。
+        # つまり、子ノードから返されるの最善手(1個)は、敵にとっての最善手になっている。
+    @staticmethod
+    def search(position, depth, nodes):
+
+        # 基底条件 : ある頂点に到達したとき、再帰深さが0だったら、再帰を終了する。
+            # この局面では指し手は選択せずに、盤面の評価値だけを行う。
+            # これらの葉ノードの「値」がボトムアップで、味方・敵の視点の真逆の基準で選択されながら(値に-1をかけ算しながら)、根に向かって候補値が絞られるイメージ。
+        if depth == 0:
+            return BestMove(Move.NONE, Evaluator.evaluate(position))
+        
+        # 初期値のセット
+        best_move = Move.RESIGN  # 最善手の初期値としては投了を設定しておく
+        best_value = -float('inf')
+        
+        moves = list(generate_moves(position))
+        # moveを1つ取り出して、盤面に適用すると、敵盤面へ遷移
+        for move in moves:
+            # 相手の王を取れるなら最善手として即採用する
+            if move.piece_to == Piece.BlackKing or move.piece_to == Piece.WhiteKing:
+                return BestMove(move, float('inf'))
+        
+            nodes[0] += 1  # 探索ノード数を管理
+            do_move(position, move)  # move適用すると、敵の盤面になる
+            child_best_move = Searcher.search(position, depth - 1, nodes)  # 子ノード(1つ)から返される最善手(1つ) (<- 敵視点での(評価値に基づく)最善手)
+            undo_move(position, move)  # 自分の盤面に戻す
+
+            # ネガマックス法: ミニマックスの簡略化バージョン
+            value = - child_best_move.value  # 子ノード(1つ)から返される最善手(1つ)は、敵にとっての最善手。従って複数子ノードから返る複数の指し手の中で、価値が最小(-1をかけた時には最大)のものを選べば良い。(悪あがきのイメージ)
+            if value > best_value:
+                best_value = value
+                best_move = move
+
+        # 手下全員の言い分をforで訊き終えてから return するタイプの再帰。(ただし、手下とは犬猿の仲で、真逆のことを互いに主張しているイメージ。)
+        return BestMove(best_move, best_value)  # 最善の指し手 と 最善と判断したエビデンスに該当する評価値 をセットにして返す。
+
 
 # =======================================
-# 12. USIプロトコルに対応したメイン処理
-import random
+# 13. USIプロトコルに対応したメイン処理
+
+# import random
 
 def main():
     initialize_types()
@@ -705,12 +754,31 @@ def main():
             else:
                 print("no moves")
         elif command == "go":
-            moves = list(generate_moves(position))
-            if not moves:
+            # ランダム指し手生成
+            # moves = list(generate_moves(position))
+            # if not moves:
+            #     print("bestmove resign")
+            # else:
+            #     move = random.choice(moves)
+            #     print("bestmove " + move.transform_move_to_USI())
+
+            depth = 3  # 探索深さ（必要に応じて調整可能）
+            begin_time = time.time()
+            nodes = [0] # 探索ノード数を管理
+            best_move = Searcher.search(position, depth, nodes)
+            end_time = time.time()
+            delta_time = int((end_time - begin_time) * 1000)  #　探索時間をmsに変換
+            nps = int(nodes[0] / (end_time - begin_time)) if (end_time - begin_time) > 0 else 0
+            best_move_string = best_move.move.transform_move_to_USI()
+            score_CP = best_move.value
+            # info コマンドで探索情報を出力
+            print(f"info depth {depth} seldepth {depth} time {delta_time} nodes {nodes[0]} score cp {score_CP} nps {nps} pv {best_move_string}")
+
+            if best_move.value < -30000:
                 print("bestmove resign")
             else:
-                move = random.choice(moves)
-                print("bestmove " + move.transform_move_to_USI())
+                print("bestmove " + best_move_string)
+
         elif command == "eval":
             print(Evaluator.evaluate(position))
         elif command == "quit":
